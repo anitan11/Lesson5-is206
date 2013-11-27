@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import datetime
+import string
 
 import webapp2
 import jinja2
@@ -118,15 +119,15 @@ def blog_key(name = 'default'):
     return db.Key.from_path('blogs', name)
 
 class PostDB(db.Model):
-    subject = db.StringProperty(required = True)
-    content = db.TextProperty(required = True)
-    created = db.DateTimeProperty(auto_now_add = True)
-    last_modified = db.DateTimeProperty(auto_now = True)
+	subject = db.StringProperty(required = True)
+	content = db.TextProperty(required = True)
+	created = db.DateTimeProperty(auto_now_add = True)
+	last_modified = db.DateTimeProperty(auto_now = True)
 
-    def render(self):
-        self._render_text = self.content.replace('\n', '<br>')
-        return render_str("post.html", p = self, key = str(self.key()))
-		
+	def render(self):
+		self._render_text = self.content.replace('\n', '<br>')
+		return render_str("post.html", p = self, key = str(self.key()))
+
 	def toJson(self):
 		POST_TYPES = (str, str, datetime.date,datetime.date)
 		output = {}
@@ -301,6 +302,6 @@ app = webapp2.WSGIApplication([('/', MainPage),
                                ('/logout', Logout),
                                ('/blog.json', BlogJson),
                                ('/blog/.json', BlogJson),
-                               ('/blog/([0-9]+).json', PostJson),
+                               ('/blogpost.json', PostJson),
                                ],
                               debug=True)
