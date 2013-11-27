@@ -10,6 +10,7 @@ import string
 import webapp2
 import jinja2
 
+from string import letters
 from google.appengine.ext import db
 
 web_dir = os.path.join(os.path.dirname(__file__), 'web')
