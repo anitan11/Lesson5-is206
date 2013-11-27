@@ -154,13 +154,19 @@ class Blog(MainHandler):
 class Post(MainHandler):
 	def get(self):
 		key = self.request.get('id')
-		post = db.get(key)
+		if key.find('.json'):
+			key_split = key.split('.json')
+			key = str(key_split[0])
+			key = key.decode('unicode-escape')
+			self.redirect('/blogpost.json?id=%s' % (key))
+		else:
+			post = db.get(key)
 		
-		if not post:
-			self.redirect('/blog')
-			return 
+			if not post:
+				self.redirect('/blog')
+				return 
 			
-		self.render("permalink.html", post = post)
+			self.render("permalink.html", post = post)
 		
 class PostJson(MainHandler):
 	def get(self):
