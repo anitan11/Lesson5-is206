@@ -1,18 +1,16 @@
 
-<div class="post"> <div class="post-heading"> <div class="post-title">
-
-		<a href='/blogpost?id={{key}}'>{{p.subject}}</a>
-
-</div>
-		<i><a href='/blogpost.json?id={{key}}'>as .json</a></i>
-<div class="post-date">
-
+<div class="post"> 
+	<div class="post-heading"> 
+		<div class="post-title">
+			<a href='/blogpost?id={{key}}'>{{p.subject}}</a>
+		</div>
+	<i><a href='/blogpost.json?id={{key}}'>as .json</a></i>
+		<div class="post-date">
 		{{p.created.strftime("%b %d, %Y")}}
-
-</div> </div>
-<div class="post-content">
-
-		{{p._render_text | safe}}
-
-</div> </div>
+		</div> 
+	</div>
+		<div class="post-content">
+			{{p._render_text | safe}}
+		</div> 
+</div>
 

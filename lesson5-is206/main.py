@@ -10,7 +10,6 @@ import string
 import webapp2
 import jinja2
 
-from string import letters
 from google.appengine.ext import db
 
 web_dir = os.path.join(os.path.dirname(__file__), 'web')
@@ -154,11 +153,8 @@ class Blog(MainHandler):
 class Post(MainHandler):
 	def get(self):
 		key = self.request.get('id')
-		if key.find('.json'):
-			key_split = key.split('.json')
-			key = str(key_split[0])
-			key = key.decode('unicode-escape')
-			self.redirect('/blogpost.json?id=%s' % (key))
+		if key.find('.json') != -1:
+			self.json_redirect(key)
 		else:
 			post = db.get(key)
 		
@@ -167,6 +163,13 @@ class Post(MainHandler):
 				return 
 			
 			self.render("permalink.html", post = post)
+			
+	def json_redirect(self, key):
+		key_split = key.split('.json')
+		key_strip = key_split[0].strip() 
+		key_precode = str(key_strip) 
+		key = key_precode.decode('unicode-escape')
+		self.redirect('/blogpost.json?id=%s' % (key))
 		
 class PostJson(MainHandler):
 	def get(self):
