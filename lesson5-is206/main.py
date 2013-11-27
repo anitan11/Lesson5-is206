@@ -3,23 +3,22 @@ import re
 import random
 import hashlib
 import hmac
-import logging
 import json
-from string import letters
+import datetime
 
 import webapp2
 import jinja2
 
+from string import letters
 from google.appengine.ext import db
 
-template_dir = os.path.join(os.path.dirname(__file__), 'templates')
-jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
-                               autoescape = True)
+web_dir = os.path.join(os.path.dirname(__file__), 'web')
+JINJA_ENVIRONMENT = jinja2.Environment(loader = jinja2.FileSystemLoader(web_dir), autoescape=True)
 
-secret = 'fart'
+secret = 'secret'
 
 def render_str(template, **params):
-    t = jinja_env.get_template(template)
+    t = JINJA_ENVIRONMENT.get_template(template)
     return t.render(params)
 
 def make_secure_val(val):
@@ -30,22 +29,16 @@ def check_secure_val(secure_val):
     if secure_val == make_secure_val(val):
         return val
 
-class BlogHandler(webapp2.RequestHandler):
+class MainHandler(webapp2.RequestHandler):
     def write(self, *a, **kw):
         self.response.out.write(*a, **kw)
 
     def render_str(self, template, **params):
         params['user'] = self.user
-        t = jinja_env.get_template(template)
-        return t.render(params)
+        return render_str(template, **params)
 
     def render(self, template, **kw):
         self.write(self.render_str(template, **kw))
-
-    def render_json(self, d):
-        json_txt = json.dumps(d)
-        self.response.headers['Content-Type'] = 'application/json; charset=UTF-8'
-        self.write(json_txt)
 
     def set_secure_cookie(self, name, val):
         cookie_val = make_secure_val(val)
@@ -68,17 +61,14 @@ class BlogHandler(webapp2.RequestHandler):
         uid = self.read_secure_cookie('user_id')
         self.user = uid and User.by_id(int(uid))
 
-        if self.request.url.endswith('.json'):
-            self.format = 'json'
-        else:
-            self.format = 'html'
+def render_post(response, post):
+    response.out.write('<b>' + post.subject + '</b><br>')
+    response.out.write(post.content)
 
-class MainPage(BlogHandler):
+class MainPage(MainHandler):
   def get(self):
-      self.write('Hello, Udacity!')
+      self.redirect('/blog')
 
-
-##### user stuff
 def make_salt(length = 5):
     return ''.join(random.choice(letters) for x in xrange(length))
 
@@ -124,12 +114,10 @@ class User(db.Model):
             return u
 
 
-##### blog stuff
-
 def blog_key(name = 'default'):
     return db.Key.from_path('blogs', name)
 
-class Post(db.Model):
+class PostDB(db.Model):
     subject = db.StringProperty(required = True)
     content = db.TextProperty(required = True)
     created = db.DateTimeProperty(auto_now_add = True)
@@ -137,38 +125,68 @@ class Post(db.Model):
 
     def render(self):
         self._render_text = self.content.replace('\n', '<br>')
-        return render_str("post.html", p = self)
+        return render_str("post.html", p = self, key = str(self.key()))
+		
+	def toJson(self):
+		POST_TYPES = (str, str, datetime.date,datetime.date)
+		output = {}
+		for key in self.properties():
+			value = getattr(self, key)
+			if isinstance(value, datetime.date):
+				dthandler = lambda obj: obj.isoformat() if isinstance(obj, datetime.datetime) else None
+				output[key] = json.dumps(value, default=dthandler)
+			elif isinstance(value, str):
+				output[key] = value
+			elif isinstance(value, unicode):
+				output[key] = value.decode('unicode-escape')
+			elif isinstance(value, db.Model):
+				output[key] = to_dict(value)
+			else:
+				raise ValueError('cannot encode ' + repr(value))
+		return output
 
-    def as_dict(self):
-        time_fmt = '%c'
-        d = {'subject': self.subject,
-             'content': self.content,
-             'created': self.created.strftime(time_fmt),
-             'last_modified': self.last_modified.strftime(time_fmt)}
-        return d
-
-class BlogFront(BlogHandler):
+class Blog(MainHandler):
     def get(self):
-        posts = greetings = Post.all().order('-created')
-        if self.format == 'html':
-            self.render('front.html', posts = posts)
-        else:
-            return self.render_json([p.as_dict() for p in posts])
+        posts = db.GqlQuery("select * from PostDB order by created desc limit 10")
+        self.render('front.html', posts = posts)
 
-class PostPage(BlogHandler):
-    def get(self, post_id):
-        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
-        post = db.get(key)
+class Post(MainHandler):
+	def get(self):
+		key = self.request.get('id')
+		post = db.get(key)
+		
+		if not post:
+			self.redirect('/blog')
+			return 
+			
+		self.render("permalink.html", post = post)
+		
+class PostJson(MainHandler):
+	def get(self):
+		key = self.request.get('id')
+		post = db.get(key)
+		
+		if not post:
+			self.redirect('/blog')
+			return
 
-        if not post:
-            self.error(404)
-            return
-        if self.format == 'html':
-            self.render("permalink.html", post = post)
-        else:
-            self.render_json(post.as_dict())
+		self.response.headers["Content-Type"] = "application/json; charset=UTF-8"
+		self.write(json.dumps(post.toJson()))
 
-class NewPost(BlogHandler):
+class BlogJson(MainHandler):
+    def get(self):
+        articles = db.GqlQuery('SELECT * FROM PostDB '
+                               'ORDER BY created DESC '
+                               'LIMIT 20')
+        content = [{'subject': article.subject,
+                    'content': article.content,
+                    'created': str(article.created.strftime('%a %b %d %H:%M:%S %Y')),
+                    'last_modified': str(article.last_modified.strftime('%a %b %d %H:%M:%S %Y'))
+                   } for article in articles]
+        self.response.headers['Content-Type'] = 'application/json'
+        self.write(json.dumps(content, indent=4))
+
+class NewPost(MainHandler):
     def get(self):
         if self.user:
             self.render("newpost.html")
@@ -183,66 +201,61 @@ class NewPost(BlogHandler):
         content = self.request.get('content')
 
         if subject and content:
-            p = Post(parent = blog_key(), subject = subject, content = content)
+            p = PostDB(parent = blog_key(), subject = subject, content = content)
             p.put()
-            self.redirect('/blog/%s' % str(p.key().id()))
+            self.redirect('/blog')
         else:
             error = "subject and content, please!"
             self.render("newpost.html", subject=subject, content=content, error=error)
 
+class Signup(MainHandler):
+	USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
+	PASS_RE = re.compile(r"^.{3,20}$")
+	EMAIL_RE = re.compile(r'^[\S]+@[\S]+\.[\S]+$')
+	username = ''
+	email = ''
+	password = ''
 
-USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
-def valid_username(username):
-    return username and USER_RE.match(username)
+	def valid_username(self, username):
+		return username and self.USER_RE.match(username)
 
-PASS_RE = re.compile(r"^.{3,20}$")
-def valid_password(password):
-    return password and PASS_RE.match(password)
+	def valid_password(self, password):
+		return password and self.PASS_RE.match(password)
 
-EMAIL_RE  = re.compile(r'^[\S]+@[\S]+\.[\S]+$')
-def valid_email(email):
-    return not email or EMAIL_RE.match(email)
+	def valid_email(self, email):
+		return not email or self.EMAIL_RE.match(email)
+	
+	def get(self):
+		self.render("signup-form.html")
 
-class Signup(BlogHandler):
-    def get(self):
-        self.render("signup-form.html")
+	def post(self):
+		have_error = False
+		self.username = self.request.get('username')		
+		self.password = self.request.get('password')
+		verify = self.request.get('verify')
+		self.email = self.request.get('email')
+		
+		params = dict(username = self.username, email = self.email)
+		
+		if not self.valid_username(self.username):
+			params['error_username'] = "That's not a valid username."
+			have_error = True
+		
+		if not self.valid_password(self.password):
+			params['error_password'] = "That wasn't a valid password."
+			have_error = True
+		elif self.password !=verify:
+			params['error_verify'] = "Your passwords didn't match."
+			have_error = True
+		
+		if not self.valid_email(self.email):
+			params['error_email'] = "That's not a valid email."
+			have_error = True
 
-    def post(self):
-        have_error = False
-        self.username = self.request.get('username')
-        self.password = self.request.get('password')
-        self.verify = self.request.get('verify')
-        self.email = self.request.get('email')
-
-        params = dict(username = self.username,
-                      email = self.email)
-
-        if not valid_username(self.username):
-            params['error_username'] = "That's not a valid username."
-            have_error = True
-
-        if not valid_password(self.password):
-            params['error_password'] = "That wasn't a valid password."
-            have_error = True
-        elif self.password != self.verify:
-            params['error_verify'] = "Your passwords didn't match."
-            have_error = True
-
-        if not valid_email(self.email):
-            params['error_email'] = "That's not a valid email."
-            have_error = True
-
-        if have_error:
-            self.render('signup-form.html', **params)
-        else:
-            self.done()
-
-    def done(self, *a, **kw):
-        raise NotImplementedError
-
-class Unit2Signup(Signup):
-    def done(self):
-        self.redirect('/unit2/welcome?username=' + self.username)
+		if have_error:
+			self.render('signup-form.html', **params)
+		else:
+			self.done()
 
 class Register(Signup):
     def done(self):
@@ -256,9 +269,9 @@ class Register(Signup):
             u.put()
 
             self.login(u)
-            self.redirect('/unit3/welcome')
+            self.redirect('/blog')
 
-class Login(BlogHandler):
+class Login(MainHandler):
     def get(self):
         self.render('login-form.html')
 
@@ -269,40 +282,25 @@ class Login(BlogHandler):
         u = User.login(username, password)
         if u:
             self.login(u)
-            self.redirect('/unit3/welcome')
+            self.redirect('/blog')
         else:
             msg = 'Invalid login'
             self.render('login-form.html', error = msg)
 
-class Logout(BlogHandler):
+class Logout(MainHandler):
     def get(self):
         self.logout()
-        self.redirect('/signup')
-
-class Unit3Welcome(BlogHandler):
-    def get(self):
-        if self.user:
-            self.render('welcome.html', username = self.user.name)
-        else:
-            self.redirect('/signup')
-
-class Welcome(BlogHandler):
-    def get(self):
-        username = self.request.get('username')
-        if valid_username(username):
-            self.render('welcome.html', username = username)
-        else:
-            self.redirect('/unit2/signup')
+        self.redirect('/blog')
 
 app = webapp2.WSGIApplication([('/', MainPage),
-                               ('/unit2/signup', Unit2Signup),
-                               ('/unit2/welcome', Welcome),
-                               ('/blog/?(?:.json)?', BlogFront),
-                               ('/blog/([0-9]+)(?:.json)?', PostPage),
+                               ('/blog', Blog),
+                               ('/blogpost', Post),
                                ('/blog/newpost', NewPost),
                                ('/signup', Register),
                                ('/login', Login),
                                ('/logout', Logout),
-                               ('/unit3/welcome', Unit3Welcome),
+                               ('/blog.json', BlogJson),
+                               ('/blog/.json', BlogJson),
+                               ('/blog/([0-9]+).json', PostJson),
                                ],
                               debug=True)

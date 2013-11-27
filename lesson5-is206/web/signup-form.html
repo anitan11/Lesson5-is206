@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Signup</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head> 
+<body>
+	<a href="/blog">Back to blog</a><br/>
+	<h1>Signup</h1>
+    <form method="post">
+		Username: <input type="text" name="username" value="{{username}}">
+			<div style="color: red">{{error_username}}</div><br/>
+		Password: <input type="password" name="password" value="">
+			<div style="color: red">{{error_password}}</div><br/>
+		Verify Password: <input type="password" name="verify" value="">
+			<div style="color: red">{{error_verify}}</div><br/>
+		Email (optional): <input type="text" name="email" value="{{email}}">
+			<div style="color: red">{{error_email}}</div><br/>
+      <input type="submit">
+    </form>
+  </body>
+
+</html>

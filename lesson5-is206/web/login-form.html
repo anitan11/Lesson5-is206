@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <title>Login</title>
+    <style type="text/css">
+      .error {color: red}
+    </style>
+  </head>
+
+  <body>
+	<a href="/blog">Back to blog</a><br/>
+    <h2>Login</h2>
+    <form method="post">
+		Username: <input type="text" name="username" value="{{username}}"><br>
+		Password: <input type="password" name="password" value="">
+
+		<div class="error">{{error}}</div>
+		<input type="submit">
+    </form>
+  </body>
+</html>
