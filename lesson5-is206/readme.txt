@@ -1,0 +1,9 @@
+These apps are made as an assignment on the University of Agder, where 
+every student was going to solve the problem sets of the CS253-cource
+on Udacity.com.
+I have not made my code for it to go through the validation in the course.
+The functionality is still there, but the limitations that was set for
+udacity to be able to rund their tests on my code, is not there, like 
+the url to the blog. Udacity's limitations was that it had to be set as 
+/blog/? but I made it only /blog. There are several like these limitations
+I did not follow, mostely to illustrate that I understand the code.
